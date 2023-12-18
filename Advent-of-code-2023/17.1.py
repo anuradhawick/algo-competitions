@@ -1,5 +1,6 @@
 from collections import defaultdict
 from copy import deepcopy
+import heapq
 
 data = """
 2413432311323
@@ -17,25 +18,34 @@ data = """
 4322674655533
 """
 
+answer = """
+241..3231....
+..1545..3....
+........542..
+..........4..
+..........53.
+...........5.
+...........6.
+...........53
+............7
+............3
+...........63
+...........3.
+...........33"""
+
+
+data = open("17.txt").read()
+
 
 class Vertex:
     def __init__(self, cost, position) -> None:
         self.cost: int = cost
         self.position: tuple = position
         self.neighbours: dict[str, "Vertex"] = dict()
-        self.distance = {
-            "t": float("inf"),
-            "l": float("inf"),
-            "r": float("inf"),
-            "b": float("inf"),
-        }
-        self.distance = float("inf")
-        self.parent = None
-        self.direction_travelled = defaultdict(int)
-        self.parent: "Vertex" = None
 
-
-direction_map = {"t": "b", "b": "t", "l": "r", "r": "l"}
+    def __lt__(self, other):
+        # do not care
+        return True
 
 
 def is_valid(r, c, matrix: list[list[str]]):
@@ -74,40 +84,63 @@ for r, vl in enumerate(vertices):
             v.neighbours["l"] = vertices[lr][lc]
             vertices[lr][lc].neighbours["r"] = v
 
+# this heap gives us the node with shortest distance to it
+# despite the direction it may have gone
+queue: list[tuple[int, tuple[Vertex, str, int]]] = []
+heapq.heappush(queue, (0, (vertices[0][0], "", 0)))
 
-queue: list[Vertex] = []
-
-for vl in vertices:
-    for v in vl:
-        queue.append(v)
-
-queue[0].distance = {k: 0 for k in "trlb"}
-# queue[0].distance = 0
+# start node, direction, steps_taken: distance so far
+cost = {(vertices[0][0], None, 0): 0}
+parent = {(vertices[0][0], None, 0): None}
 
 # solve the distances for each direction.
 while len(queue) > 0:
-    # solve for each direction
-    for ddd in "trlb":
-        u: Vertex = min(queue, key=lambda x: x.distance[ddd])
-        print(u.position, u.distance)
-        queue.remove(u)
+    current_cost, current_state = heapq.heappop(queue)
+    (current_node, current_direction, current_step_count) = current_state
+    # check each direction
+    for new_direction in "trlb":
+        # if there is a neighbour
+        if new_direction in current_node.neighbours:
+            neighbour = current_node.neighbours[new_direction]
+            # are we going in same direction or turning, if turning, it is a new step counter
+            new_step_count = (
+                current_step_count + 1 if current_direction == new_direction else 1
+            )
+            # same direction, too far? discontinue
+            if new_step_count > 3:
+                continue
+            # already visited node and already visited neighbour? skip
+            if current_state in parent and neighbour == parent[current_state][0]:
+                continue
+            
+            new_state = (neighbour, new_direction, new_step_count)
+            new_cost = current_cost + neighbour.cost
 
-        for direction in "trlb":
-            if direction in u.neighbours and u.neighbours[direction] in queue:
-                n = u.neighbours[direction]
-                alt = n.cost + u.distance
+            # if this is a brand new visit or it has already been visited at a greater cost
+            if new_state not in cost or new_cost < cost[new_state]:
+                cost[new_state] = new_cost
+                parent[new_state] = current_state
+                heapq.heappush(queue, (new_cost, new_state))
 
-                if alt < n.distance and u.direction_travelled[direction] + 1 <= 3:
-                    n.distance = alt
-                    n.direction_travelled[direction] = u.direction_travelled[direction] + 1
-                    n.parent = u
 
-print(vertices[-1][-1].__dict__)
 matrix = [["."] * len(line) for line in data.strip().split()]
+current_state = (vertices[-1][-1], "", "")
 
-p = vertices[-1][-1]
-matrix[p.position[0]][p.position[1]] = "#"
-while p := p.parent:
-    matrix[p.position[0]][p.position[1]] = "#"
+cost_to_dest = 9999999
+current_state = None
+for k, v in cost.items():
+    n, d, s = k
+    if n == vertices[-1][-1] and v < cost_to_dest:
+        cost_to_dest = v
+        current_state = k
 
-print("\n".join(["".join(line) for line in matrix]))
+# DEBUG
+# while current_state is not None:
+#     n, d, s = current_state
+#     matrix[n.position[0]][n.position[1]] = str(n.cost)
+#     if current_state not in parent:
+#         break
+#     current_state = parent[current_state]
+
+# print("\n".join(["".join(line) for line in matrix]))
+print(cost_to_dest)
