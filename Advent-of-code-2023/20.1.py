@@ -1,95 +1,152 @@
-import tokenize
-from io import BytesIO
+from abc import abstractmethod
 
 data = """
-px{a<2006:qkq,m>2090:A,rfg}
-pv{a>1716:R,A}
-lnx{m>1548:A,A}
-rfg{s<537:gd,x>2440:R,A}
-qs{s>3448:A,lnx}
-qkq{x<1416:A,crn}
-crn{x>2662:A,R}
-in{s<1351:px,qqz}
-qqz{s>2770:qs,m<1801:hdj,R}
-gd{a>3333:R,R}
-hdj{m>838:A,pv}
-
-{x=787,m=2655,a=1222,s=2876}
-{x=1679,m=44,a=2067,s=496}
-{x=2036,m=264,a=79,s=2244}
-{x=2461,m=1339,a=466,s=291}
-{x=2127,m=1623,a=2188,s=1013}
+broadcaster -> a, b, c
+%a -> b
+%b -> c
+%c -> inv
+&inv -> a
 """
-# data = open("20.txt").read()
 
-workflows, inputs = data.strip().split("\n\n")
-rules_dict: dict[str, "Rule"] = dict()
+data = """
+broadcaster -> a
+%a -> inv, con
+&inv -> b
+%b -> con
+&con -> output"""
 
-
-class Rule:
-    def __init__(self, conditions=None) -> None:
-        self.var = []
-        self.op = []
-        self.val = []
-        self.res = []
-        self.alt = None
-
-        for condition in conditions:
-            if len(condition) == 1:
-                self.alt = condition[0]
-                continue
-            # break condition into two
-            condition, res = condition
-            # save response
-            self.res.append(res)
-            # save expressions
-            for tok in tokenize.tokenize(BytesIO(condition.encode("utf-8")).readline):
-                match (tok.type):
-                    case tokenize.NAME:
-                        self.var.append(tok.string)
-                    case tokenize.OP:
-                        self.op.append(tok.string)
-                    case tokenize.NUMBER:
-                        self.val.append(tok.string)
-
-    def match(self, variables):
-        # iterate and check if matches
-        for var, op, val, res in zip(self.var, self.op, self.val, self.res):
-            if var in variables:
-                # DEBUG
-                # print(
-                #     f"expr {var}({variables[var]}) {op} {val} -> {res}",
-                #     eval(f"{variables[var]} {op} {val}"),
-                # )
-                if eval(f"{variables[var]} {op} {val}"):
-                    return res
-        return self.alt
+data = open("20.txt").read()
 
 
-def resolve(variables):
-    res = "in"
-    path = [res]
-    while res not in ("A", "R"):
-        rule = rules_dict[res]
-        res = rule.match(variables)
-        path.append(res)
-    print(path)
-    return res
+class Node:
+    def __init__(self, name) -> None:
+        self.parents = dict()
+        self.next: list[Node] = list()
+        self.name = name
+        self.transmission_buffer = []
+
+    @abstractmethod
+    def input(self, parent, high):
+        pass
+
+    def add_parent(self, parent: "Node"):
+        self.parents[parent] = False
+
+    def set_next(self, node: "Node"):
+        if node not in self.next:
+            self.next.append(node)
 
 
-for w in workflows.strip().split("\n"):
-    name, conditions = w.split("{")
-    conditions = [c.split(":") for c in conditions.strip("}").split(",")]
-    rules_dict[name] = Rule(conditions)
+class FlipFlop(Node):
+    def __init__(self, name) -> None:
+        super().__init__(name)
+        self.status = False
+
+    def input(self, parent, high):
+        if not high:
+            self.status = not self.status
+            self.transmission_buffer += [self.status]
 
 
-tot = 0
+class Conjunction(Node):
+    def __init__(self, name) -> None:
+        super().__init__(name)
+        self.parents: dict[Node, bool] = dict()
 
-for i in inputs.strip().split("\n"):
-    variables = {x.split("=")[0]: x.split("=")[1] for x in i[1:-1].split(",")}
-    ans = resolve(variables)
+    def input(self, parent, high):
+        self.parents[parent] = high
+        if all(self.parents.values()):
+            self.transmission_buffer.append(False)
+        else:
+            self.transmission_buffer.append(True)
 
-    if ans == "A":
-        tot += sum(map(int, variables.values()))
 
-print(tot)
+class UnTyped(Node):
+    def __init__(self, name) -> None:
+        super().__init__(name)
+
+    def input(self, parent, high):
+        pass
+
+    def add_parent(self, parent: "Node"):
+        pass
+
+    def set_next(self, node: "Node"):
+        pass
+
+
+broadcaster = []
+modules: dict[str, Node] = dict()
+edges = []
+
+for line in data.strip().split("\n"):
+    if line.startswith("broadcaster"):
+        broadcaster = line.split("->")[-1].strip().split(", ")
+    if line.startswith("%"):
+        source, destination_str = line[1:].strip().split(" -> ")
+        destinations = destination_str.split(", ")
+        modules[source] = FlipFlop(source)
+        for d in destinations:
+            edges.append((source, d))
+    if line.startswith("&"):
+        source, destination_str = line[1:].strip().split(" -> ")
+        destinations = destination_str.split(", ")
+        modules[source] = Conjunction(source)
+        for d in destinations:
+            edges.append((source, d))
+
+for s, d in edges:
+    if d in modules:
+        modules[s].set_next(modules[d])
+        modules[d].add_parent(modules[s])
+    else:
+        modules[s].set_next(UnTyped(d))
+
+
+def press(broadcaster):
+    queue = list(broadcaster)
+    low, high = 1, 0
+
+    while len(queue) > 0:
+        signal = queue.pop(0)
+        if isinstance(signal, str):
+            print(f"broadcaster -low -> {signal}")
+            low += 1
+            modules[signal].input(None, False)
+            queue.append(modules[signal])
+        elif isinstance(signal, FlipFlop):
+            # flush the buffer to next states
+            for n in signal.next:
+                for status in signal.transmission_buffer:
+                    print(
+                        f"pub {signal.name} -{'high' if status else 'low'} -> {n.name}"
+                    )
+                    high += 1 if status else 0
+                    low += 1 if not status else 0
+                    n.input(signal, status)
+                    queue.append(n)
+            signal.transmission_buffer = []
+        elif isinstance(signal, Conjunction):
+            # flush the buffer to next states
+            for n in signal.next:
+                for status in signal.transmission_buffer:
+                    print(
+                        f"pub {signal.name} -{'high' if status else 'low'} -> {n.name}"
+                    )
+                    high += 1 if status else 0
+                    low += 1 if not status else 0
+                    n.input(signal, status)
+                    queue.append(n)
+            signal.transmission_buffer = []
+
+    return low, high
+
+
+low = 0
+high = 0
+for _ in range(1000):
+    l, h = press(broadcaster)
+    low += l
+    high += h
+    print()
+print(low, high, low * high)
