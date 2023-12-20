@@ -42,9 +42,6 @@ for line in data.strip().split("\n"):
 
 points = [Point(p) for p in points]
 poly = Polygon(points)
-(minx, miny, maxx, maxy) = [int(x) for x in poly.bounds]
-r_len = int(maxx - minx)
-c_len = int(maxy - miny)
 
 print(int(poly.area + circumference / 2 + 1))
 
