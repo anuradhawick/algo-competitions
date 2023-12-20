@@ -20,7 +20,8 @@ hdj{m>838:A,pv}
 {x=2461,m=1339,a=466,s=291}
 {x=2127,m=1623,a=2188,s=1013}
 """
-# data = open("20.txt").read()
+
+data = open("19.txt").read()
 
 workflows, inputs = data.strip().split("\n\n")
 rules_dict: dict[str, "Rule"] = dict()
