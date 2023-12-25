@@ -167,7 +167,7 @@ grid.move_all()
 removables = 0
 
 for cube in grid.cubes:
-    if all([len(s.supported_by)>1 for s in cube.supported_to]):
-        removables+=1
+    if all([len(s.supported_by) > 1 for s in cube.supported_to]):
+        removables += 1
 
 print(removables)

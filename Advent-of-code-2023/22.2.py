@@ -166,8 +166,6 @@ for cube in grid.cubes:
         removables += 1
 
 
-
-
 def disintegrate(start):
     broken = set([start])
     to_break = [start]
