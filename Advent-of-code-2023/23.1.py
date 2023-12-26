@@ -1,4 +1,3 @@
-from collections import defaultdict
 import heapq as hq
 
 data = """
@@ -27,7 +26,7 @@ data = """
 #####################.#
 """
 
-data = open('23.txt').read()
+data = open("23.txt").read()
 
 matrix = [list(line) for line in data.strip().split("\n")]
 start = 0, matrix[0].index(".")
@@ -39,7 +38,8 @@ directions["<"] = [(0, -1)]
 directions["^"] = [(-1, 0)]
 directions["v"] = [(1, 0)]
 
-# queue stores (parent, node) to account for four possible incomings
+# queue stores (distance, (parent, node)) to account for four possible incomings
+# same as Day 17 AoC 2023
 queue = [(0, (None, start))]
 cost = {(None, start): 0}
 parent = {(None, start): (None, None)}
@@ -65,9 +65,7 @@ while len(queue):
                 parent[new_state] = curr_state
                 hq.heappush(queue, (new_cost, new_state))
 
-            # print("Added", (nr, nc), pos_parent_dict[(nr, nc)])
-
 for k, v in cost.items():
     p, s = k
-    if s==end:
+    if s == end:
         print(s, abs(v))

@@ -1,6 +1,5 @@
 from tqdm import tqdm
 import networkx as nx
-import sys
 
 data = """
 #.#####################
@@ -67,6 +66,9 @@ print("Initial nodes count", len(G.nodes))
 print("Initial edges count", len(G.edges))
 
 
+# Wikipedia says this is a NP hard problem
+# So best I could think was this
+# iGraph library is known to be faster for this
 def compress(G: nx.Graph):
     for node in list(G.nodes):
         neighbours = list(G.neighbors(node))
